@@ -1,4 +1,4 @@
-# Iso2-stream
+# osi2-stream
 ## Installation
     npm install iso2-stream --save
 ## Example

@@ -7,7 +7,7 @@
     "test": "mocha"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "debug": "^3.1.0",
     "nan": "^2.8.0"
@@ -15,5 +15,13 @@
   "devDependencies": {
     "chai": "^4.1.2",
     "mocha": "^4.0.1"
+  },
+  "repository" :
+  { 
+    "type" : "git",
+    "url" : "https://github.com/trackds/osi2-stream.git"
+  },
+  "bugs": {
+    "url": "https://github.com/trackds/osi2-stream/issues"
   }
 }
