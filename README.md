@@ -1,4 +1,8 @@
 # osi2-stream
+![npmVersion](https://img.shields.io/npm/v/osi2-stream.svg)
+![npmdw](https://img.shields.io/npm/dw/osi2-stream.svg)
+![openIssues](https://img.shields.io/github/issues/trackds/osi2-stream.svg)
+![license](https://img.shields.io/github/license/trackds/osi2-stream.svg)
 ## Installation
     npm install iso2-stream --save
 ## Example

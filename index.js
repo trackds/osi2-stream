@@ -1,6 +1,7 @@
 const pcap_addon = require('./build/Release/pcap_addon.node');
 const {fork} = require("child_process");
 const { Duplex } = require('stream');
+const path = require("path");
 
 class Pcap extends Duplex {
     constructor(devName, options) {
@@ -34,9 +35,9 @@ class Pcap extends Duplex {
         }
 
         if (_filter) {
-            this.cp = fork("./src/js/receive.js", [_filter]);
+            this.cp = fork(path.join(__dirname,"./src/js/receive.js"), [_filter]);
         } else {
-            this.cp = fork("./src/js/receive.js");
+            this.cp = fork(path.join(__dirname,"./src/js/receive.js"));
         }
         this.cp.on("message", (m) => {
             let errmsg = m.error;
