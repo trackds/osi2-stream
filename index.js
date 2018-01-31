@@ -8,6 +8,7 @@ class Pcap extends Duplex {
         super(options);
         if (typeof devName === 'string')
         {
+            this.devName = devName;
             this.dev = pcap_addon.openDev(devName);
             this.data = [];
         }
@@ -23,7 +24,7 @@ class Pcap extends Duplex {
             this.cp.kill();
             this.cp = null;
         }
-        let _filter = null;
+        let _filter = "";
         let _cb = null;
         if (typeof filter === "string") {
             _filter = filter;
@@ -34,11 +35,7 @@ class Pcap extends Duplex {
             _cb = cb;
         }
 
-        if (_filter) {
-            this.cp = fork(path.join(__dirname,"./src/js/receive.js"), [_filter]);
-        } else {
-            this.cp = fork(path.join(__dirname,"./src/js/receive.js"));
-        }
+        this.cp = fork(path.join(__dirname,"./src/js/receive.js"), [_filter, this.devName]);
         this.cp.on("message", (m) => {
             let errmsg = m.error;
             if (m.ready) {

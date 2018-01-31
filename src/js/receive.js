@@ -4,10 +4,9 @@ process.on('message', (m) => {
 });
 
 var filter = process.argv[2];
+var devName = process.argv[3];
 
-var devinfo = pcap_addon.findalldevs()[0];
-
-var dev = pcap_addon.openDev(devinfo.name);
+var dev = pcap_addon.openDev(devName);
 
 if (filter && (filter != "undefined") && (filter != "null") && (typeof filter === "string")) {
     dev.SetFilter(filter);
