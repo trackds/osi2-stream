@@ -45,34 +45,23 @@
         {
             "name": "Win32",
             "includePath": [
-                "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Tools/MSVC/14.11.25503/include/*",
-                "C:/Users/Administrator/AppData/Local/lxss/rootfs/usr/include/*",
-                "C:/Program Files (x86)/Windows Kits/8.1/Include/um",
-                "C:/Program Files (x86)/Windows Kits/8.1/Include/shared",
-                "C:/Program Files (x86)/Windows Kits/8.1/Include/winrt",
-                "C:/Users/Administrator/.node-gyp/8.5.0/include/node",
-                "${workspaceRoot}/node_modules/nan",
-                "${workspaceRoot}/src/winpcap/include",
-                "${workspaceRoot}/lib/winpcap/include",
+                "${default}",
+                "./src/winpcap/include",
+                "./lib/winpcap/Include",
                 "${workspaceRoot}"
             ],
             "defines": [
                 "_DEBUG",
                 "UNICODE",
-                "HAVE_REMOTE"
+                "HAVE_REMOTE",
+                "WIN32"
             ],
             "intelliSenseMode": "msvc-x64",
             "browse": {
                 "path": [
-                    "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Tools/MSVC/14.11.25503/include/*",
-                    "C:/Users/Administrator/AppData/Local/lxss/rootfs/usr/include/*",
-                    "C:/Program Files (x86)/Windows Kits/8.1/Include/um",
-                    "C:/Program Files (x86)/Windows Kits/8.1/Include/shared",
-                    "C:/Program Files (x86)/Windows Kits/8.1/Include/winrt",
-                    "C:/Users/Administrator/.node-gyp/8.5.0/include/node",
-                    "${workspaceRoot}/node_modules/nan",
-                    "${workspaceRoot}/src/winpcap/include",
-                    "${workspaceRoot}/lib/winpcap/include",
+                    "${default}",
+                    "./src/winpcap/include",
+                    "./lib/winpcap/Include",
                     "${workspaceRoot}"
                 ],
                 "limitSymbolsToIncludedHeaders": true,

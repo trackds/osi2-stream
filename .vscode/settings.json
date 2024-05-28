@@ -1,0 +1,14 @@
+{
+  "C_Cpp.default.includePath": [
+    "C:\\Users\\zhuxiang\\.cmake-js\\node-x64\\v20.13.1\\include\\node"
+  ],
+  "C_Cpp.default.compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/VC/Tools/MSVC/14.29.30133/bin/Hostx64/x64/cl.exe",
+  "files.associations": {
+    "*.sass": "css",
+    "pcap.h": "c",
+    "node_api.h": "c",
+    "node_api_types.h": "c",
+    "packet32.h": "c",
+    "ntddndis.h": "c"
+  }
+}
