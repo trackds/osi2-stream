@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "install": "prebuild-install || cmake-js compile",
+    "upload": "prebuild -r napi --backend cmake-js -u",
     "test": "mocha"
   },
   "author": "",
