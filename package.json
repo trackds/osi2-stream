@@ -25,5 +25,8 @@
   },
   "bugs": {
     "url": "https://github.com/trackds/osi2-stream/issues"
+  },
+  "binary": {
+    "napi_versions": [7]
   }
 }
