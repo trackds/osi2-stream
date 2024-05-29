@@ -1,21 +1,23 @@
 {
   "name": "osi2-stream",
-  "version": "1.0.3",
+  "version": "2.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "install": "cmake-js compile",
+    "install": "prebuild-install || cmake-js compile",
     "test": "mocha"
   },
   "author": "",
   "license": "MIT",
   "dependencies": {
     "cmake-js": "^7.3.0",
-    "debug": "^4.1.1"
+    "debug": "^4.1.1",
+    "prebuild-install": "^7.1.2"
   },
   "devDependencies": {
     "chai": "^4.2.0",
-    "mocha": "^5.2.0"
+    "mocha": "^5.2.0",
+    "prebuild": "^13.0.1"
   },
   "repository": {
     "type": "git",
