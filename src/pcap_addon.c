@@ -1,7 +1,24 @@
 #include <node_api.h>
-#include <pcap/pcap.h>
+
+#ifdef __linux__
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <unistd.h>
+#elif defined(__APPLE__)
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/sysctl.h>
+#include <net/if.h>
+#include <net/if_dl.h>
+#elif defined(_WIN32)
+#define PCAP_DONT_INCLUDE_PCAP_BPF_H 1
 #include <packet32.h>
 #include <ntddndis.h>
+#endif
+#include <pcap/pcap.h>
 // #include "addon.h"
 
 typedef struct
@@ -22,8 +39,71 @@ typedef struct
   napi_value *result;
 } CALLBACK_T;
 
-static int getDevMac(const PCHAR devName, char *mac)
+static int getDevMac(const char* devName, char *mac)
 {
+#ifdef __linux__
+  struct ifreq ifr;
+  int fd = socket(AF_INET, SOCK_DGRAM, 0);
+  
+  if (fd < 0) {
+    return -1;
+  }
+  
+  strncpy(ifr.ifr_name, devName, IFNAMSIZ-1);
+  
+  if (ioctl(fd, SIOCGIFHWADDR, &ifr) == -1) {
+    close(fd);
+    return -1;  
+  }
+  
+  sprintf(mac, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
+          (unsigned char)ifr.ifr_hwaddr.sa_data[0],
+          (unsigned char)ifr.ifr_hwaddr.sa_data[1],
+          (unsigned char)ifr.ifr_hwaddr.sa_data[2],
+          (unsigned char)ifr.ifr_hwaddr.sa_data[3],
+          (unsigned char)ifr.ifr_hwaddr.sa_data[4],
+          (unsigned char)ifr.ifr_hwaddr.sa_data[5]);
+  
+  close(fd);
+#elif defined(__APPLE__)
+  int mib[6];
+  size_t len;
+  char *buf;
+  unsigned char *ptr;
+  struct if_msghdr *ifm;
+  struct sockaddr_dl *sdl;
+
+  mib[0] = CTL_NET;
+  mib[1] = AF_ROUTE;
+  mib[2] = 0;
+  mib[3] = AF_LINK;
+  mib[4] = NET_RT_IFLIST;
+  if ((mib[5] = if_nametoindex(devName)) == 0) {
+      return -1;
+  }
+
+  if (sysctl(mib, 6, NULL, &len, NULL, 0) < 0) {
+      return -1;
+  }
+
+  if ((buf = malloc(len)) == NULL) {
+      return -1;
+  }
+
+  if (sysctl(mib, 6, buf, &len, NULL, 0) < 0) {
+      free(buf);
+      return -1;
+  }
+
+  ifm = (struct if_msghdr *)buf;
+  sdl = (struct sockaddr_dl *)(ifm + 1);
+  ptr = (unsigned char *)LLADDR(sdl);
+  sprintf(mac, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
+          ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5]);
+
+  free(buf);
+  return 0;
+#elif defined(_WIN32)
   LPADAPTER lpAdapter = NULL;
   PPACKET_OID_DATA OidData = NULL;
   BOOLEAN Status;
@@ -66,6 +146,7 @@ static int getDevMac(const PCHAR devName, char *mac)
     printf("Unable to open the adapter, Error Code : %lx\n", GetLastError());
     return -1;
   }
+#endif
   return 0;
 }
 
@@ -85,7 +166,7 @@ static napi_value find_alldevs_cb(napi_env env, napi_callback_info info)
     return NULL;
   }
 
-  if (pcap_findalldevs_ex(PCAP_SRC_IF_STRING, NULL /* auth is not needed */, &alldevs, errbuf) == -1)
+  if (pcap_findalldevs(&alldevs, errbuf) == -1)
   {
     printf("find dev error \r\n");
     return ret;
@@ -98,12 +179,21 @@ static napi_value find_alldevs_cb(napi_env env, napi_callback_info info)
     napi_value mac = NULL;
     napi_value description = NULL;
     napi_value addrArr = NULL;
+    napi_value is_loopback = NULL;
+    napi_value is_wireless = NULL;
+    napi_value is_linkup = NULL;
+    napi_value is_running = NULL;
+    napi_value connection_status = NULL;
     int j = 0;
     struct pcap_addr *addr = d->addresses;
     struct pcap_addr *naddr = addr;
-    char index[10];
-    char macBuf[16];
+    char macBuf[32];
     napi_handle_scope scope;
+
+    if (d->name == NULL)
+    {
+      continue;
+    }
 
     status = napi_open_handle_scope(env, &scope);
     if (status != napi_ok)
@@ -126,16 +216,43 @@ static napi_value find_alldevs_cb(napi_env env, napi_callback_info info)
     }
 
     memset(macBuf, 0, sizeof(macBuf));
-    memset(index, 0, 10);
-    sprintf(index, "%d", i);
 
-    getDevMac(&d->name[8], macBuf);
+    getDevMac(d->name, macBuf);
     napi_create_string_utf8(env, d->name, strlen(d->name), &name);
-    napi_create_string_utf8(env, d->description, strlen(d->description), &description);
+    if (d->description)
+      napi_create_string_utf8(env, d->description, strlen(d->description), &description);
     napi_create_string_utf8(env, macBuf, strlen(macBuf), &mac);
+    napi_get_boolean(env, d->flags & PCAP_IF_LOOPBACK, &is_loopback);
+    napi_get_boolean(env, d->flags & PCAP_IF_WIRELESS, &is_wireless);
+    napi_get_boolean(env, d->flags & PCAP_IF_RUNNING, &is_running);
+    napi_get_boolean(env, d->flags & PCAP_IF_UP, &is_linkup);
+    switch (d->flags & PCAP_IF_CONNECTION_STATUS)
+    {
+      case PCAP_IF_CONNECTION_STATUS_CONNECTED:
+        napi_create_string_utf8(env, "connected", strlen("connected"), &connection_status);
+        break;
+      case PCAP_IF_CONNECTION_STATUS_DISCONNECTED:
+        napi_create_string_utf8(env, "disconnected", strlen("disconnected"), &connection_status);
+        break;
+      case PCAP_IF_CONNECTION_STATUS_NOT_APPLICABLE:
+        napi_create_string_utf8(env, "not applicable", strlen("not applicable"), &connection_status);
+        break;
+      case PCAP_IF_CONNECTION_STATUS_UNKNOWN:
+      default:
+        napi_create_string_utf8(env, "unknown", strlen("unknown"), &connection_status);
+        break;
+    }
     napi_set_named_property(env, obj, "name", name);
     napi_set_named_property(env, obj, "description", description);
     napi_set_named_property(env, obj, "mac", mac);
+    if (d->flags != 0)
+    {
+      napi_set_named_property(env, obj, "loopback", is_loopback);
+      napi_set_named_property(env, obj, "wireless", is_wireless);
+      napi_set_named_property(env, obj, "running", is_running);
+      napi_set_named_property(env, obj, "linkup", is_linkup);
+      napi_set_named_property(env, obj, "connection_status", connection_status);
+    }
 
     for (naddr = addr, j = 0; naddr != NULL; naddr = naddr->next, j++)
     {
@@ -145,51 +262,61 @@ static napi_value find_alldevs_cb(napi_env env, napi_callback_info info)
       napi_value netmask = NULL;
       napi_value broadaddr = NULL;
       char addrStr[20];
-      char jindex[10];
       memset(addrStr, 0, sizeof(addrStr));
-      memset(jindex, 0, sizeof(jindex));
 
-      sprintf(jindex, "%d", j);
       status = napi_open_handle_scope(env, &scope);
       if (status != napi_ok)
       {
         break;
       }
 
-      if (naddr->addr->sa_family == 2)
+      if (naddr->addr->sa_family == AF_INET)
       {
-        sprintf(addrStr, "%u.%u.%u.%u",
+        status = napi_create_object(env, &addrObj);
+        if (status != napi_ok)
+        {
+          napi_close_handle_scope(env, scope);
+          break;
+        }
+        snprintf(addrStr, sizeof(addrStr), "%u.%u.%u.%u",
                 (unsigned char)naddr->addr->sa_data[2],
                 (unsigned char)naddr->addr->sa_data[3],
                 (unsigned char)naddr->addr->sa_data[4],
                 (unsigned char)naddr->addr->sa_data[5]);
-        if (napi_create_string_utf8(env, addrStr, strlen(addrStr), &addrObj) == napi_ok)
+        if (napi_create_string_utf8(env, addrStr, strlen(addrStr), &ipaddr) == napi_ok)
         {
-          napi_set_named_property(env, addrObj, "ipaddr", addrObj);
+          napi_set_named_property(env, addrObj, "ipaddr", ipaddr);
         }
 
-        memset(addrStr, 0, sizeof(addrStr));
-        sprintf(addrStr, "%u.%u.%u.%u",
-                (unsigned char)naddr->netmask->sa_data[2],
-                (unsigned char)naddr->netmask->sa_data[3],
-                (unsigned char)naddr->netmask->sa_data[4],
-                (unsigned char)naddr->netmask->sa_data[5]);
-        if (napi_create_string_utf8(env, addrStr, strlen(addrStr), &netmask) == napi_ok)
+        if (naddr->netmask != NULL)
         {
-          napi_set_named_property(env, addrObj, "netmask", netmask);
+          memset(addrStr, 0, sizeof(addrStr));
+          snprintf(addrStr, sizeof(addrStr), "%u.%u.%u.%u",
+                  (unsigned char)naddr->netmask->sa_data[2],
+                  (unsigned char)naddr->netmask->sa_data[3],
+                  (unsigned char)naddr->netmask->sa_data[4],
+                  (unsigned char)naddr->netmask->sa_data[5]);
+          if (napi_create_string_utf8(env, addrStr, strlen(addrStr), &netmask) == napi_ok)
+          {
+            napi_set_named_property(env, addrObj, "netmask", netmask);
+          }
         }
 
-        memset(addrStr, 0, sizeof(addrStr));
-        sprintf(addrStr, "%u.%u.%u.%u",
-                (unsigned char)naddr->broadaddr->sa_data[2],
-                (unsigned char)naddr->broadaddr->sa_data[3],
-                (unsigned char)naddr->broadaddr->sa_data[4],
-                (unsigned char)naddr->broadaddr->sa_data[5]);
-        if (napi_create_string_utf8(env, addrStr, strlen(addrStr), &broadaddr) == napi_ok)
+        if (naddr->broadaddr != NULL)
         {
-          napi_set_named_property(env, addrObj, "broadaddr", broadaddr);
+          memset(addrStr, 0, sizeof(addrStr));
+          snprintf(addrStr, sizeof(addrStr), "%u.%u.%u.%u",
+                  (unsigned char)naddr->broadaddr->sa_data[2],
+                  (unsigned char)naddr->broadaddr->sa_data[3],
+                  (unsigned char)naddr->broadaddr->sa_data[4],
+                  (unsigned char)naddr->broadaddr->sa_data[5]);
+          if (napi_create_string_utf8(env, addrStr, strlen(addrStr), &broadaddr) == napi_ok)
+          {
+            napi_set_named_property(env, addrObj, "broadaddr", broadaddr);
+          }
         }
-        napi_set_element(env, addrArr, atoi(jindex), addrObj);
+
+        napi_set_element(env, addrArr, j, addrObj);
       }
       else
       {
@@ -199,11 +326,12 @@ static napi_value find_alldevs_cb(napi_env env, napi_callback_info info)
     }
 
     napi_set_named_property(env, obj, "address", addrArr);
-    napi_set_element(env, ret, atoi(index), obj);
+    napi_set_element(env, ret, i, obj);
     napi_close_handle_scope(env, scope);
   }
 
   pcap_freealldevs(alldevs);
+
   return ret;
 }
 
@@ -211,7 +339,7 @@ static napi_value pcap_get_dev_name(napi_env env, napi_callback_info info)
 {
   napi_value ret = NULL;
   PCAP_OBJ_T *pcap = NULL;
-  napi_get_cb_info(env, info, NULL, NULL, NULL, &pcap);
+  napi_get_cb_info(env, info, NULL, NULL, NULL, (void **)&pcap);
   napi_create_string_utf8(env, (pcap != NULL) ? pcap->devName : "", NAPI_AUTO_LENGTH, &ret);
   return ret;
 }
@@ -234,7 +362,7 @@ static void readPktCb(u_char *user, const struct pcap_pkthdr *pkt_header, const 
 static napi_value pcapobj_close(napi_env env, napi_callback_info info)
 {
   PCAP_OBJ_T *data = NULL;
-  napi_get_cb_info(env, info, NULL, NULL, NULL, &data);
+  napi_get_cb_info(env, info, NULL, NULL, NULL, (void **)&data);
   if (data != NULL)
   {
     if (data->fp != NULL)
@@ -260,7 +388,7 @@ static napi_value pcapobj_read(napi_env env, napi_callback_info info)
   napi_value this_arg;
   int ret = 0;
 
-  if (napi_get_cb_info(env, info, &argc, argv, &this_arg, &pcap) != napi_ok)
+  if (napi_get_cb_info(env, info, &argc, argv, &this_arg, (void **)&pcap) != napi_ok)
   {
     napi_throw_error(env, "Error:", "get cb info failed");
     return NULL;
@@ -288,7 +416,7 @@ static napi_value pcapobj_read(napi_env env, napi_callback_info info)
 #if 0
     AsyncQueueWorker(new AsyncReadPacket(callback, fp));
 #else
-  ret = pcap_loop(pcap->fp, 0, readPktCb, (PUCHAR)&callback);
+  ret = pcap_loop(pcap->fp, 0, readPktCb, (char *)&callback);
   if (ret == -1)
   {
     char errorBuf[PCAP_ERRBUF_SIZE];
@@ -310,7 +438,7 @@ static napi_value pcapobj_send(napi_env env, napi_callback_info info)
   napi_status status;
   bool check_type = false;
 
-  if (napi_get_cb_info(env, info, &argc, argv, NULL, &pcap) != napi_ok)
+  if (napi_get_cb_info(env, info, &argc, argv, NULL, (void **)&pcap) != napi_ok)
   {
     napi_throw_error(env, "Error:", "get cb info failed");
     return NULL;
@@ -387,7 +515,7 @@ static napi_value pcapobj_setfilter(napi_env env, napi_callback_info info)
   char filterStr[256];
   bpf_u_int32 netmask = 0;
 
-  if (napi_get_cb_info(env, info, &argc, argv, NULL, &pcap) != napi_ok)
+  if (napi_get_cb_info(env, info, &argc, argv, NULL, (void **)&pcap) != napi_ok)
   {
     napi_throw_error(env, "Error:", "get cb info failed");
     return NULL;
@@ -448,7 +576,7 @@ static napi_value pcapobj_getfilter(napi_env env, napi_callback_info info)
 {
   PCAP_OBJ_T *pcap = NULL;
   napi_value ret = NULL;
-  if (napi_get_cb_info(env, info, NULL, NULL, NULL, &pcap) != napi_ok)
+  if (napi_get_cb_info(env, info, NULL, NULL, NULL, (void **)&pcap) != napi_ok)
   {
     napi_throw_error(env, "Error:", "get cb info failed");
     return NULL;
@@ -494,11 +622,11 @@ static napi_value open_dev_cb(napi_env env, napi_callback_info info)
 
     napi_get_value_string_utf8(env, argv[0], pcap_obj->devName, 1024, NULL);
 
-    if ((pcap_obj->fp = pcap_open(pcap_obj->devName,         // name of the device
-                                  1500,                      // portion of the packet to capture (only the first 100 bytes)
+    if ((pcap_obj->fp = pcap_open_live(pcap_obj->devName,         // name of the device
+                                  65536,                      // portion of the packet to capture (only the first 100 bytes)
                                   PCAP_OPENFLAG_PROMISCUOUS, // promiscuous mode
                                   1000,                      // read timeout
-                                  NULL,                      // authentication on the remote machine
+                                  // NULL,                      // authentication on the remote machine
                                   errbuf                     // error buffer
                                   )) == NULL)
     {

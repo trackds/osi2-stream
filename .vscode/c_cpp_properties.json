@@ -25,29 +25,13 @@
         },
         {
             "name": "Linux",
-            "includePath": [
-                "/usr/include",
-                "/usr/local/include",
-                "${workspaceRoot}"
-            ],
-            "defines": [],
-            "intelliSenseMode": "clang-x64",
-            "browse": {
-                "path": [
-                    "/usr/include",
-                    "/usr/local/include",
-                    "${workspaceRoot}"
-                ],
-                "limitSymbolsToIncludedHeaders": true,
-                "databaseFilename": ""
-            }
+            "compileCommands": "./build/compile_commands.json"
         },
         {
             "name": "Win32",
             "includePath": [
                 "${default}",
-                "./src/winpcap/include",
-                "./lib/winpcap/Include",
+                "./build/npcap_sdk-prefix/src/npcap_sdk/Include",
                 "${workspaceRoot}"
             ],
             "defines": [
@@ -60,8 +44,7 @@
             "browse": {
                 "path": [
                     "${default}",
-                    "./src/winpcap/include",
-                    "./lib/winpcap/Include",
+                    "./build/npcap_sdk-prefix/src/npcap_sdk/Include",
                     "${workspaceRoot}"
                 ],
                 "limitSymbolsToIncludedHeaders": true,

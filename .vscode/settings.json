@@ -9,6 +9,9 @@
     "node_api.h": "c",
     "node_api_types.h": "c",
     "packet32.h": "c",
-    "ntddndis.h": "c"
+    "ntddndis.h": "c",
+    "bpf.h": "c",
+    "stdlib.h": "c",
+    "string.h": "c"
   }
 }

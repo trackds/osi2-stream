@@ -6,7 +6,10 @@
   "scripts": {
     "install": "prebuild-install || cmake-js compile",
     "upload": "prebuild -r napi --backend cmake-js -u",
-    "test": "mocha"
+    "test": "mocha",
+    "build": "cmake-js build",
+    "clean": "cmake-js clean",
+    "configure": "cmake-js configure"
   },
   "author": "",
   "license": "MIT",
